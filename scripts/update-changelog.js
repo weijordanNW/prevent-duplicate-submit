@@ -2,10 +2,15 @@
 
 const fs = require('fs');
 const path = require('path');
+const { execSync } = require('child_process');
 
-const CHANGELOG_PATH = path.join(__dirname, '../CHANGELOG.md');
-const FRONTEND_PACKAGE_PATH = path.join(__dirname, '../frontend/package.json');
-const SERVER_PACKAGE_PATH = path.join(__dirname, '../server/package.json');
+const PROJECT_ROOT = path.join(__dirname, '..');
+const CHANGELOG_PATH = path.join(PROJECT_ROOT, 'CHANGELOG.md');
+const FRONTEND_CHANGELOG_PATH = path.join(PROJECT_ROOT, 'frontend/CHANGELOG.md');
+const FRONTEND_PACKAGE_PATH = path.join(PROJECT_ROOT, 'frontend/package.json');
+const SERVER_PACKAGE_PATH = path.join(PROJECT_ROOT, 'server/package.json');
+const APP_VUE_PATH = path.join(PROJECT_ROOT, 'frontend/src/App.vue');
+const LAST_COMMIT_FILE = path.join(__dirname, '.changelog-last-commit');
 
 function getCurrentVersion() {
   const pkg = JSON.parse(fs.readFileSync(FRONTEND_PACKAGE_PATH, 'utf-8'));
@@ -33,20 +38,63 @@ function bumpVersion(version, type = 'patch') {
 }
 
 function getCommitType(commitMessage) {
-  if (commitMessage.startsWith('feat:')) return { type: 'feat', label: '新增' };
-  if (commitMessage.startsWith('fix:')) return { type: 'fix', label: '修复' };
-  if (commitMessage.startsWith('docs:')) return { type: 'docs', label: '文档' };
-  if (commitMessage.startsWith('refactor:')) return { type: 'refactor', label: '重构' };
-  if (commitMessage.startsWith('perf:')) return { type: 'perf', label: '性能' };
-  if (commitMessage.startsWith('test:')) return { type: 'test', label: '测试' };
-  if (commitMessage.startsWith('chore:')) return { type: 'chore', label: '其他' };
-  return { type: 'other', label: '其他' };
+  if (/^feat(\(.+\))?:/.test(commitMessage)) return 'feat';
+  if (/^fix(\(.+\))?:/.test(commitMessage)) return 'fix';
+  if (/^docs(\(.+\))?:/.test(commitMessage)) return 'docs';
+  if (/^refactor(\(.+\))?:/.test(commitMessage)) return 'refactor';
+  if (/^perf(\(.+\))?:/.test(commitMessage)) return 'perf';
+  if (/^test(\(.+\))?:/.test(commitMessage)) return 'test';
+  if (/^chore(\(.+\))?:/.test(commitMessage)) return 'chore';
+  if (/BREAKING CHANGE/.test(commitMessage)) return 'major';
+  return 'other';
 }
 
-function getCommitMessages(since = 'HEAD~1') {
-  const { execSync } = require('child_process');
+function getCommitTypeLabel(type) {
+  const labels = {
+    feat: '新增',
+    fix: '修复',
+    docs: '文档',
+    refactor: '重构',
+    perf: '性能',
+    test: '测试',
+    chore: '其他',
+    major: '重大变更',
+    other: '其他'
+  };
+  return labels[type] || '其他';
+}
+
+function getLastProcessedCommit() {
   try {
-    const output = execSync(`git log ${since}..HEAD --oneline --format=%s`, { encoding: 'utf-8' });
+    if (fs.existsSync(LAST_COMMIT_FILE)) {
+      return fs.readFileSync(LAST_COMMIT_FILE, 'utf-8').trim();
+    }
+  } catch (e) {}
+  return null;
+}
+
+function saveLastProcessedCommit(hash) {
+  fs.writeFileSync(LAST_COMMIT_FILE, hash);
+}
+
+function getCurrentCommitHash() {
+  try {
+    return execSync('git rev-parse HEAD', { encoding: 'utf-8' }).trim();
+  } catch (e) {
+    return null;
+  }
+}
+
+function getNewCommitMessages() {
+  const lastHash = getLastProcessedCommit();
+  try {
+    let range;
+    if (lastHash) {
+      range = `${lastHash}..HEAD`;
+    } else {
+      range = 'HEAD~1..HEAD';
+    }
+    const output = execSync(`git log ${range} --format=%s`, { encoding: 'utf-8' });
     return output.trim().split('\n').filter(Boolean);
   } catch (e) {
     return [];
@@ -54,10 +102,8 @@ function getCommitMessages(since = 'HEAD~1') {
 }
 
 function getGitBranch() {
-  const { execSync } = require('child_process');
   try {
-    const output = execSync('git rev-parse --abbrev-ref HEAD', { encoding: 'utf-8' });
-    return output.trim();
+    return execSync('git rev-parse --abbrev-ref HEAD', { encoding: 'utf-8' }).trim();
   } catch (e) {
     return 'main';
   }
@@ -65,58 +111,52 @@ function getGitBranch() {
 
 function generateChangelogEntry(messages, newVersion) {
   const today = new Date().toISOString().split('T')[0];
-  const entries = {
-    feat: [],
-    fix: [],
-    docs: [],
-    refactor: [],
-    perf: [],
-    test: [],
-    chore: [],
-    other: []
-  };
+  const groups = {};
 
   messages.forEach(msg => {
-    const { type, label } = getCommitType(msg);
-    const cleanMsg = msg.replace(/^(\w+:\s*)/, '');
-    entries[type].push(`- ${cleanMsg}`);
+    const type = getCommitType(msg);
+    const cleanMsg = msg.replace(/^(\w+(\(.+\))?:\s*)/, '');
+    if (!groups[type]) groups[type] = [];
+    groups[type].push(`- ${cleanMsg}`);
   });
 
   let entry = `## [${newVersion}] - ${today}\n\n`;
 
-  const order = ['feat', 'fix', 'refactor', 'perf', 'docs', 'test', 'chore', 'other'];
-  const labels = {
-    feat: '新增',
-    fix: '修复',
-    refactor: '重构',
-    perf: '性能',
-    docs: '文档',
-    test: '测试',
-    chore: '其他',
-    other: '其他'
-  };
+  const displayOrder = ['feat', 'fix', 'refactor', 'perf', 'docs', 'test', 'chore', 'major', 'other'];
 
-  order.forEach(type => {
-    if (entries[type].length > 0) {
-      entry += `### ${labels[type]}\n\n`;
-      entry += entries[type].join('\n') + '\n\n';
+  displayOrder.forEach(type => {
+    if (groups[type] && groups[type].length > 0) {
+      entry += `### ${getCommitTypeLabel(type)}\n\n`;
+      entry += groups[type].join('\n') + '\n\n';
     }
   });
 
   return entry;
 }
 
-function updateChangelog(messages) {
-  const currentVersion = getCurrentVersion();
-  
+function determineBumpType(messages) {
   let bumpType = 'patch';
   messages.forEach(msg => {
-    if (msg.startsWith('feat:')) bumpType = 'minor';
-    if (msg.startsWith('BREAKING CHANGE:')) bumpType = 'major';
+    if (/BREAKING CHANGE/.test(msg)) bumpType = 'major';
+    else if (/^feat(\(.+\))?:/.test(msg) && bumpType !== 'major') bumpType = 'minor';
   });
-  
-  const newVersion = bumpVersion(currentVersion, bumpType);
+  return bumpType;
+}
 
+function updateChangelogFile() {
+  const messages = getNewCommitMessages();
+  if (messages.length === 0) {
+    console.log('⚠️ 没有新的提交，跳过更新');
+    return null;
+  }
+
+  console.log(`📝 检测到 ${messages.length} 个新提交:`);
+  messages.forEach(msg => console.log(`  - ${msg}`));
+  console.log('');
+
+  const currentVersion = getCurrentVersion();
+  const bumpType = determineBumpType(messages);
+  const newVersion = bumpVersion(currentVersion, bumpType);
   const newEntry = generateChangelogEntry(messages, newVersion);
 
   let existingContent = '';
@@ -125,9 +165,16 @@ function updateChangelog(messages) {
   }
 
   let updatedContent;
-  if (existingContent.startsWith('# 变更日志')) {
-    const header = existingContent.match(/^# 变更日志[\s\S]*?---\n/)[0];
-    updatedContent = header + '\n' + newEntry + existingContent.slice(header.length);
+  if (/^# 变更日志/.test(existingContent)) {
+    const separatorMatch = existingContent.match(/\r?\n---\r?\n/);
+    if (separatorMatch) {
+      const separatorEnd = separatorMatch.index + separatorMatch[0].length;
+      const header = existingContent.slice(0, separatorEnd);
+      const body = existingContent.slice(separatorEnd);
+      updatedContent = header + '\n' + newEntry + body.trimStart();
+    } else {
+      updatedContent = existingContent + '\n' + newEntry;
+    }
   } else {
     updatedContent = `# 变更日志
 
@@ -144,7 +191,7 @@ ${newEntry}`;
   fs.writeFileSync(CHANGELOG_PATH, updatedContent);
   console.log(`✅ CHANGELOG.md 已更新，新版本: v${newVersion}`);
 
-  return newVersion;
+  return { newVersion, messages };
 }
 
 function updatePackageVersions(newVersion) {
@@ -160,44 +207,43 @@ function updatePackageVersions(newVersion) {
 }
 
 function updateFrontendApp(newVersion) {
-  const appPath = path.join(__dirname, '../frontend/src/App.vue');
-  let appContent = fs.readFileSync(appPath, 'utf-8');
+  let appContent = fs.readFileSync(APP_VUE_PATH, 'utf-8');
   appContent = appContent.replace(/const version = '[\d.]+'/, `const version = '${newVersion}'`);
-  fs.writeFileSync(appPath, appContent);
+  fs.writeFileSync(APP_VUE_PATH, appContent);
   console.log(`✅ App.vue 版本已更新为 v${newVersion}`);
 }
 
 function copyChangelogToFrontend() {
-  const source = CHANGELOG_PATH;
-  const dest = path.join(__dirname, '../frontend/CHANGELOG.md');
-  fs.copyFileSync(source, dest);
-  console.log(`✅ CHANGELOG.md 已复制到 frontend 目录`);
+  fs.copyFileSync(CHANGELOG_PATH, FRONTEND_CHANGELOG_PATH);
+  console.log('✅ CHANGELOG.md 已复制到 frontend 目录');
 }
 
 function main() {
   const branch = getGitBranch();
   if (branch !== 'main') {
-    console.log(`⚠️ 当前分支不是 main，跳过自动更新 CHANGELOG`);
+    console.log(`⚠️ 当前分支是 "${branch}"，仅在 main 分支自动更新 CHANGELOG`);
     process.exit(0);
   }
 
-  const messages = getCommitMessages();
-  if (messages.length === 0) {
-    console.log(`⚠️ 没有新的提交，跳过更新`);
+  const result = updateChangelogFile();
+  if (!result) {
     process.exit(0);
   }
 
-  console.log(`📝 检测到 ${messages.length} 个新提交:`);
-  messages.forEach(msg => console.log(`  - ${msg}`));
-  console.log('');
-
-  const newVersion = updateChangelog(messages);
+  const { newVersion } = result;
   updatePackageVersions(newVersion);
   updateFrontendApp(newVersion);
   copyChangelogToFrontend();
 
+  const currentHash = getCurrentCommitHash();
+  if (currentHash) {
+    saveLastProcessedCommit(currentHash);
+  }
+
   console.log('');
   console.log('🎉 CHANGELOG 自动更新完成！');
+
+  return result;
 }
 
 if (require.main === module) {
@@ -205,7 +251,8 @@ if (require.main === module) {
 }
 
 module.exports = {
-  updateChangelog,
-  getCommitMessages,
-  bumpVersion
+  updateChangelogFile,
+  getNewCommitMessages,
+  bumpVersion,
+  main
 };
