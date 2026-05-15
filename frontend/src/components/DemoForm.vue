@@ -49,18 +49,15 @@
         <button class="btn btn-success" @click="submitOrder">
           有防护提交 (幂等)
         </button>
-        <button class="btn btn-outline" @click="rapidFireSubmit">
-          连发5次 (测试防重)
-        </button>
       </div>
 
-      <div class="config-row">
-        <label>连发次数: </label>
+      <div class="demo-row">
+        <label class="row-label">连发次数: </label>
         <input v-model.number="fireCount" type="number" min="1" max="20" class="count-input" />
-        <button class="btn btn-danger btn-sm" @click="rapidFireWithoutGuard">
+        <button class="btn btn-danger" @click="rapidFireWithoutGuard">
           连发N次 (无防护)
         </button>
-        <button class="btn btn-success btn-sm" @click="rapidFireWithGuard">
+        <button class="btn btn-success" @click="rapidFireWithGuard">
           连发N次 (有防护)
         </button>
       </div>
@@ -290,16 +287,6 @@ async function submitOrder() {
   fetchOrders();
 }
 
-// =============================================
-// 连发5次 - 测试防重能力
-// =============================================
-function rapidFireSubmit() {
-  requestLogs.value.unshift({ type: '🔥', message: '连发5次请求...', duplicate: false });
-  for (let i = 0; i < 5; i++) {
-    submitOrder();
-  }
-}
-
 function rapidFireWithoutGuard() {
   const count = Math.max(1, Math.min(20, fireCount.value || 5));
   requestLogs.value.unshift({ type: '🔥', message: `连发${count}次请求 (无防护)...`, duplicate: false });
@@ -425,6 +412,12 @@ async function clearOrders() {
   border-radius: 6px;
   font-size: 14px;
   text-align: center;
+}
+
+.row-label {
+  font-size: 14px;
+  color: #666;
+  white-space: nowrap;
 }
 
 .tip {
