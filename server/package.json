@@ -1,6 +1,6 @@
 {
   "name": "idempotent-server",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "幂等防重复提交 - 后端服务",
   "main": "index.js",
   "scripts": {
