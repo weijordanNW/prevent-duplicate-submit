@@ -95,7 +95,9 @@ function getNewCommitMessages() {
       range = 'HEAD~1..HEAD';
     }
     const output = execSync(`git log ${range} --format=%s`, { encoding: 'utf-8' });
-    return output.trim().split('\n').filter(Boolean);
+    return output.trim().split('\n')
+      .filter(Boolean)
+      .filter(msg => !msg.startsWith('chore: CHANGELOG自动更新'));
   } catch (e) {
     return [];
   }
