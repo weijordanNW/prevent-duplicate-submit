@@ -5,7 +5,7 @@
 ## 项目结构
 
 ```
-demo-test/
+prevent-duplicate-submit/
 ├── server/                      # 后端 - Express 幂等服务
 │   ├── package.json
 │   └── index.js                 # LRU缓存 + 幂等中间件 + in-flight 并发保护
@@ -13,15 +13,19 @@ demo-test/
 │   ├── package.json
 │   ├── vite.config.js           # Vite 配置 (含 /api 代理)
 │   ├── index.html
+│   ├── CHANGELOG.md             # 变更日志 (自动同步)
 │   └── src/
 │       ├── main.js              # 入口 (注册 v-preventReClick 全局指令)
-│       ├── App.vue              # 根组件
+│       ├── App.vue              # 根组件 (含版本号 + 变更日志展示)
 │       ├── components/
-│       │   └── DemoForm.vue     # 完整演示组件 (含重复检测)
+│       │   └── DemoForm.vue     # 完整演示组件 (含重复检测 + 自定义连发)
 │       └── utils/
 │           ├── request.js       # Axios 封装 + 全局拦截器防重
 │           ├── idempotent.js    # 幂等Key生成 + 请求指纹 + Key刷新
 │           └── preventReClick.js # v-preventReClick 指令
+├── scripts/
+│   └── update-changelog.js     # CHANGELOG 自动更新脚本
+├── CHANGELOG.md                 # 项目变更日志
 └── README.md
 ```
 
@@ -126,8 +130,23 @@ await request({ ...config, __skipIdempotent: true });
   - `无防护提交`：跳过所有防护，固定延迟 2000ms，可连续点击产生重复
   - `有防护提交`：全链路防护，每次自动刷新 Key
   - `连发5次`：同时触发 5 次提交，验证只有 1 次生效
+  - `连发次数`：自定义连发次数（1-20），可分别测试无防护和有防护场景
   - `模拟延迟`：可调 500ms ~ 3000ms，延迟越大越容易触发重复
 - **数据验证区**：自动检测重复订单（相同商品名 + 相同金额 + 3 秒内），红色高亮 + 警告标签
+- **版本变更日志**：页面底部可展开查看项目版本变更历史
+
+## 版本管理
+
+项目使用语义化版本控制，每次 Git Push 到 main 分支时自动更新 CHANGELOG：
+
+- **自动升级规则**：`feat:` 提交 → minor 版本升级 | `fix:` 提交 → patch 版本升级
+- **自动更新**：`scripts/update-changelog.js` 通过 Git pre-push 钩子触发
+- **页面展示**：`App.vue` 页面顶部显示当前版本号，底部可展开变更日志
+
+```bash
+# 手动触发 CHANGELOG 更新
+node scripts/update-changelog.js
+```
 
 ## 技术栈
 
