@@ -185,12 +185,16 @@ app.post('/api/resource/create', idempotentMiddleware, (req, res) => {
 // =============================================
 // 启动服务
 // =============================================
-const PORT = 3001;
-app.listen(PORT, () => {
-  console.log(`✅ 幂等服务已启动: http://localhost:${PORT}`);
-  console.log(`   - 幂等中间件已启用 (TTL=60s, MaxSize=1000)`);
-  console.log(`   - GET  /api/idempotent-key  → 获取幂等Key`);
-  console.log(`   - POST /api/order/submit    → 提交订单(幂等)`);
-  console.log(`   - POST /api/resource/create → 创建资源(幂等)`);
-  console.log(`   - GET  /api/orders          → 查询订单`);
-});
+module.exports = app;
+
+if (require.main === module) {
+  const PORT = process.env.PORT || 3001;
+  app.listen(PORT, () => {
+    console.log(`✅ 幂等服务已启动: http://localhost:${PORT}`);
+    console.log(`   - 幂等中间件已启用 (TTL=60s, MaxSize=1000)`);
+    console.log(`   - GET  /api/idempotent-key  → 获取幂等Key`);
+    console.log(`   - POST /api/order/submit    → 提交订单(幂等)`);
+    console.log(`   - POST /api/resource/create → 创建资源(幂等)`);
+    console.log(`   - GET  /api/orders          → 查询订单`);
+  });
+}

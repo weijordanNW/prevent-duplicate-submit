@@ -7,6 +7,7 @@ const { execSync } = require('child_process');
 const PROJECT_ROOT = path.join(__dirname, '..');
 const CHANGELOG_PATH = path.join(PROJECT_ROOT, 'CHANGELOG.md');
 const FRONTEND_CHANGELOG_PATH = path.join(PROJECT_ROOT, 'frontend/CHANGELOG.md');
+const FRONTEND_PUBLIC_CHANGELOG_PATH = path.join(PROJECT_ROOT, 'frontend/public/CHANGELOG.md');
 const FRONTEND_PACKAGE_PATH = path.join(PROJECT_ROOT, 'frontend/package.json');
 const SERVER_PACKAGE_PATH = path.join(PROJECT_ROOT, 'server/package.json');
 const APP_VUE_PATH = path.join(PROJECT_ROOT, 'frontend/src/App.vue');
@@ -217,7 +218,8 @@ function updateFrontendApp(newVersion) {
 
 function copyChangelogToFrontend() {
   fs.copyFileSync(CHANGELOG_PATH, FRONTEND_CHANGELOG_PATH);
-  console.log('✅ CHANGELOG.md 已复制到 frontend 目录');
+  fs.copyFileSync(CHANGELOG_PATH, FRONTEND_PUBLIC_CHANGELOG_PATH);
+  console.log('✅ CHANGELOG.md 已复制到 frontend 和 frontend/public 目录');
 }
 
 function main() {
