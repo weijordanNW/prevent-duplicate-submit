@@ -55,6 +55,17 @@
       </div>
 
       <div class="config-row">
+        <label>连发次数: </label>
+        <input v-model.number="fireCount" type="number" min="1" max="20" class="count-input" />
+        <button class="btn btn-danger btn-sm" @click="rapidFireWithoutGuard">
+          连发N次 (无防护)
+        </button>
+        <button class="btn btn-success btn-sm" @click="rapidFireWithGuard">
+          连发N次 (有防护)
+        </button>
+      </div>
+
+      <div class="config-row">
         <label>模拟延迟: </label>
         <select v-model.number="delay">
           <option :value="500">500ms</option>
@@ -143,6 +154,7 @@ import { ref, computed } from 'vue';
 import request from '../utils/request.js';
 
 const delay = ref(500);
+const fireCount = ref(5);
 const clickLogs = ref([]);
 const requestLogs = ref([]);
 const orders = ref([]);
@@ -288,6 +300,22 @@ function rapidFireSubmit() {
   }
 }
 
+function rapidFireWithoutGuard() {
+  const count = Math.max(1, Math.min(20, fireCount.value || 5));
+  requestLogs.value.unshift({ type: '🔥', message: `连发${count}次请求 (无防护)...`, duplicate: false });
+  for (let i = 0; i < count; i++) {
+    submitWithoutGuard();
+  }
+}
+
+function rapidFireWithGuard() {
+  const count = Math.max(1, Math.min(20, fireCount.value || 5));
+  requestLogs.value.unshift({ type: '🔥', message: `连发${count}次请求 (有防护)...`, duplicate: false });
+  for (let i = 0; i < count; i++) {
+    submitOrder();
+  }
+}
+
 function clearRequestLogs() {
   requestLogs.value = [];
 }
@@ -388,6 +416,15 @@ async function clearOrders() {
   border: 1px solid #d9d9d9;
   border-radius: 6px;
   font-size: 14px;
+}
+
+.count-input {
+  width: 60px;
+  padding: 6px 8px;
+  border: 1px solid #d9d9d9;
+  border-radius: 6px;
+  font-size: 14px;
+  text-align: center;
 }
 
 .tip {

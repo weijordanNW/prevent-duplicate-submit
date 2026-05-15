@@ -44,19 +44,18 @@ instance.interceptors.request.use(async (config) => {
 
   cleanupPendingRequests();
 
-  // 请求指纹去重 (同参数短时间内重复请求)
-  const fingerprint = requestFingerprint(config);
-  const existing = pendingRequests.get(fingerprint);
+  const dedupKey = `${method}|${config.url}`;
+  const existing = pendingRequests.get(dedupKey);
 
   if (existing && Date.now() - existing.timestamp < DEDUP_WINDOW_MS) {
-    console.warn(`[防重拦截] 重复请求已取消: ${fingerprint.slice(0, 60)}`);
+    console.warn(`[防重拦截] 重复请求已取消: ${dedupKey}`);
     const controller = new AbortController();
     config.signal = controller.signal;
     controller.abort('DUPLICATE_REQUEST');
     return config;
   }
 
-  pendingRequests.set(fingerprint, { timestamp: Date.now() });
+  pendingRequests.set(dedupKey, { timestamp: Date.now() });
 
   // 幂等Key注入
   try {
@@ -81,15 +80,15 @@ instance.interceptors.request.use(async (config) => {
 
 instance.interceptors.response.use(
   (response) => {
-    const fingerprint = requestFingerprint(response.config);
-    pendingRequests.delete(fingerprint);
+    const method = (response.config.method || 'GET').toUpperCase();
+    const dedupKey = `${method}|${response.config.url}`;
+    pendingRequests.delete(dedupKey);
 
     if (response.data?.idempotent) {
       console.log('[幂等返回] 服务端检测到重复请求，返回缓存结果');
     }
 
     // 写请求成功后刷新幂等Key，下次请求用新Key
-    const method = (response.config.method || 'GET').toUpperCase();
     if (!response.config.__skipIdempotent && ['POST', 'PUT', 'PATCH', 'DELETE'].includes(method)) {
       refreshIdempotentKey();
     }
@@ -102,8 +101,9 @@ instance.interceptors.response.use(
     }
 
     if (error.config) {
-      const fingerprint = requestFingerprint(error.config);
-      pendingRequests.delete(fingerprint);
+      const method = (error.config.method || 'GET').toUpperCase();
+      const dedupKey = `${method}|${error.config.url}`;
+      pendingRequests.delete(dedupKey);
     }
 
     return Promise.reject(error);
