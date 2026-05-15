@@ -23,7 +23,7 @@
 import { ref, onMounted } from 'vue';
 import DemoForm from './components/DemoForm.vue';
 
-const version = '1.4.0';
+const version = '1.4.1';
 const showChangelog = ref(false);
 const changelogHtml = ref('');
 
