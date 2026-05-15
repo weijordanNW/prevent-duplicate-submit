@@ -69,3 +69,8 @@ export function requestFingerprint(config) {
 
   return parts.join('|');
 }
+
+export function refreshIdempotentKey() {
+  keyCache = null;
+  keyPromise = null;
+}

@@ -23,7 +23,10 @@
       </div>
 
       <div class="log-box">
-        <div class="log-title">点击日志</div>
+        <div class="log-header">
+          <span class="log-title">点击日志</span>
+          <button class="log-clear-btn" @click="clearClickLogs">清空日志</button>
+        </div>
         <div v-for="(log, i) in clickLogs" :key="i" class="log-item">
           {{ log }}
         </div>
@@ -40,7 +43,7 @@
       <p class="card-desc">所有写请求自动携带幂等Key，拦截器自动拦截短时间内重复请求，无需任何额外代码</p>
 
       <div class="demo-row">
-        <button class="btn btn-danger" :disabled="submitting" @click="submitWithoutGuard">
+        <button class="btn btn-danger" @click="submitWithoutGuard">
           无防护提交 (可重复)
         </button>
         <button class="btn btn-success" @click="submitOrder">
@@ -63,7 +66,10 @@
       </div>
 
       <div class="log-box">
-        <div class="log-title">请求日志 (打开控制台查看更多)</div>
+        <div class="log-header">
+          <span class="log-title">请求日志 (打开控制台查看更多)</span>
+          <button class="log-clear-btn" @click="clearRequestLogs">清空日志</button>
+        </div>
         <div v-for="(log, i) in requestLogs" :key="i" class="log-item" :class="{ 'log-dup': log.duplicate, 'log-idempotent': log.idempotent }">
           <span class="log-badge">{{ log.type }}</span>
           {{ log.message }}
@@ -106,11 +112,23 @@
       <div class="card-header">
         <span class="badge badge-orange">数据验证</span>
         <h2>已提交订单</h2>
+        <span v-if="hasDuplicates" class="dup-alert-badge">
+          ⚠️ 检测到 {{ duplicateCount }} 条疑似重复
+        </span>
+        <span v-else-if="orders.length > 0" class="dup-ok-badge">
+          ✅ 无重复
+        </span>
       </div>
-      <p class="card-desc">验证：疯狂点击提交按钮，订单列表也只会有唯一一条记录</p>
-      <button class="btn btn-outline btn-sm" @click="fetchOrders">刷新列表</button>
+      <p class="card-desc">验证：疯狂点击"无防护提交"会出现多条重复，点击"有防护提交"始终只有一条</p>
+      <div class="order-actions">
+        <button class="btn btn-outline btn-sm" @click="fetchOrders">刷新列表</button>
+        <button class="btn btn-danger btn-sm" @click="clearOrders">清空列表</button>
+      </div>
       <div v-if="orders.length === 0" class="log-empty">暂无订单，去上面提交一个试试</div>
-      <div v-for="order in orders" :key="order.id" class="order-item">
+      <div v-for="order in orders" :key="order.id"
+           class="order-item"
+           :class="{ 'order-dup': duplicateOrderIds.has(order.id) }">
+        <span v-if="duplicateOrderIds.has(order.id)" class="dup-icon" title="疑似重复订单">🔁</span>
         <span class="order-id">{{ order.id }}</span>
         <span class="order-name">{{ order.productName }}</span>
         <span class="order-amount">¥{{ order.amount }}</span>
@@ -121,14 +139,40 @@
 </template>
 
 <script setup>
-import { ref } from 'vue';
+import { ref, computed } from 'vue';
 import request from '../utils/request.js';
 
 const delay = ref(500);
-const submitting = ref(false);
 const clickLogs = ref([]);
 const requestLogs = ref([]);
 const orders = ref([]);
+
+// 检测重复订单：相同商品名 + 相同金额 + 时间间隔 < 3秒 = 真正重复提交
+const DUPLICATE_WINDOW_MS = 3000;
+
+const duplicateOrderIds = computed(() => {
+  const ids = new Set();
+  const list = orders.value;
+  if (list.length < 2) return ids;
+
+  for (let i = 0; i < list.length; i++) {
+    for (let j = i + 1; j < list.length; j++) {
+      if (list[i].productName === list[j].productName && list[i].amount === list[j].amount) {
+        const ti = new Date(list[i].createdAt).getTime();
+        const tj = new Date(list[j].createdAt).getTime();
+        if (Math.abs(tj - ti) < DUPLICATE_WINDOW_MS) {
+          ids.add(list[i].id);
+          ids.add(list[j].id);
+        }
+      }
+    }
+  }
+  return ids;
+});
+
+const duplicateCount = computed(() => duplicateOrderIds.value.size);
+
+const hasDuplicates = computed(() => duplicateCount.value > 0);
 
 // =============================================
 // 纯防抖演示
@@ -140,37 +184,63 @@ function fastClickDemo() {
   if (clickLogs.value.length > 8) clickLogs.value.pop();
 }
 
+function clearClickLogs() {
+  clickLogs.value = [];
+  clickCount = 0;
+}
+
+// =============================================
+// 公共模拟数据
+// =============================================
+const productPool = [
+  { name: '蓝牙耳机', amount: 199 },
+  { name: '机械键盘', amount: 299 },
+  { name: '充电宝', amount: 399 },
+  { name: '无线鼠标', amount: 149 },
+  { name: '手机支架', amount: 49 },
+  { name: '数据线', amount: 29 },
+  { name: '笔记本', amount: 12 },
+  { name: 'U盘 64G', amount: 89 },
+  { name: '显示器', amount: 1299 },
+  { name: '插座', amount: 39 }
+];
+
+function randomProduct() {
+  return productPool[Math.floor(Math.random() * productPool.length)];
+}
+
 // =============================================
 // 无防护提交 (可以看到重复提交)
 // =============================================
 async function submitWithoutGuard() {
-  submitting.value = true;
-  const msg = `[${new Date().toLocaleTimeString()}] 无防护提交 → 可能重复!`;
+  const { name: productName, amount } = randomProduct();
+  const msg = `[${new Date().toLocaleTimeString()}] 无防护提交: ${productName} ¥${amount}`;
   requestLogs.value.unshift({ type: '⚠️', message: msg, duplicate: false });
 
   try {
-    const res = await request.post(`/api/resource/create?delay=2000`, {
-      name: '无防护资源',
-      value: Date.now()
+    const res = await request({
+      method: 'post',
+      url: '/api/order/submit?delay=2000',
+      data: { productName, amount },
+      __skipIdempotent: true
     });
     requestLogs.value.unshift({
       type: '✅',
-      message: `无防护: ${res.data?.message}`,
-      idempotent: !!res.data?.idempotent
+      message: `无防护: ${res.data?.message} (${res.data?.data?.id})`,
+      idempotent: false
     });
   } catch (e) {
     requestLogs.value.unshift({ type: '❌', message: '请求失败', duplicate: false });
   }
-  submitting.value = false;
   if (requestLogs.value.length > 15) requestLogs.value.length = 15;
+  fetchOrders();
 }
 
 // =============================================
 // 有防护提交 (全局拦截器自动防重 + 幂等)
 // =============================================
 async function submitOrder() {
-  const productName = '商品-' + Math.random().toString(36).slice(2, 6).toUpperCase();
-  const amount = Math.floor(Math.random() * 1000) + 100;
+  const { name: productName, amount } = randomProduct();
 
   const msg = `[${new Date().toLocaleTimeString()}] 提交订单: ${productName} ¥${amount}`;
   requestLogs.value.unshift({ type: '📤', message: msg, duplicate: false });
@@ -218,6 +288,10 @@ function rapidFireSubmit() {
   }
 }
 
+function clearRequestLogs() {
+  requestLogs.value = [];
+}
+
 // =============================================
 // 查询订单
 // =============================================
@@ -226,6 +300,19 @@ async function fetchOrders() {
     const res = await request.get('/api/orders');
     orders.value = res.data?.data || [];
   } catch {
+    orders.value = [];
+  }
+}
+
+// =============================================
+// 清空订单列表
+// =============================================
+async function clearOrders() {
+  try {
+    await request.delete('/api/orders');
+    orders.value = [];
+  } catch {
+    // 降级: 仅清前端
     orders.value = [];
   }
 }
@@ -334,6 +421,12 @@ async function fetchOrders() {
 .btn-outline  { background: transparent; border: 2px solid #d9d9d9; color: #666; }
 .btn-sm       { padding: 6px 14px; font-size: 12px; margin-bottom: 12px; }
 
+.order-actions {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
 /* 日志 */
 .log-box {
   background: #1e1e2e;
@@ -347,9 +440,32 @@ async function fetchOrders() {
 .log-title {
   color: #a6adc8;
   font-size: 11px;
-  margin-bottom: 8px;
   text-transform: uppercase;
   letter-spacing: 0.5px;
+}
+
+.log-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.log-clear-btn {
+  background: rgba(255,255,255,0.08);
+  border: 1px solid rgba(255,255,255,0.12);
+  color: #9399b2;
+  padding: 3px 10px;
+  border-radius: 4px;
+  font-size: 11px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.log-clear-btn:hover {
+  background: rgba(243,139,168,0.15);
+  border-color: rgba(243,139,168,0.3);
+  color: #f38ba8;
 }
 
 .log-item {
@@ -466,4 +582,48 @@ async function fetchOrders() {
 .order-name { flex: 1; }
 .order-amount { font-weight: 600; min-width: 80px; }
 .order-time { color: #999; font-size: 12px; }
+
+/* 重复订单高亮 */
+.order-dup {
+  background: #fff5f5 !important;
+  border-left: 3px solid #e53e3e;
+  animation: dupPulse 0.6s ease-in-out;
+}
+
+@keyframes dupPulse {
+  0% { background: #fed7d7; }
+  100% { background: #fff5f5; }
+}
+
+.dup-icon {
+  font-size: 14px;
+  flex-shrink: 0;
+}
+
+.dup-alert-badge {
+  background: #fff5f5;
+  color: #c53030;
+  border: 1px solid #feb2b2;
+  padding: 3px 12px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 600;
+  animation: badgeShake 0.4s ease-in-out;
+}
+
+@keyframes badgeShake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-3px); }
+  75% { transform: translateX(3px); }
+}
+
+.dup-ok-badge {
+  background: #f0fff4;
+  color: #276749;
+  border: 1px solid #9ae6b4;
+  padding: 3px 12px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 600;
+}
 </style>

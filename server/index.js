@@ -45,8 +45,10 @@ class LRUIdempotentCache {
 const idempotentCache = new LRUIdempotentCache(1000, 60000);
 
 // =============================================
-// 幂等中间件
+// 幂等中间件 (含 in-flight 并发保护)
 // =============================================
+const inFlight = new Map();
+
 function idempotentMiddleware(req, res, next) {
   const idempotentKey = req.headers['x-idempotent-key'];
 
@@ -56,7 +58,7 @@ function idempotentMiddleware(req, res, next) {
 
   const cachedResult = idempotentCache.get(idempotentKey);
   if (cachedResult) {
-    console.log(`[幂等命中] key=${idempotentKey.slice(0, 8)}... → 直接返回缓存`);
+    console.log(`[幂等命中] key=${idempotentKey.slice(0, 8)}... → 缓存返回`);
     return res.status(cachedResult.status).json({
       ...cachedResult.body,
       idempotent: true,
@@ -64,7 +66,30 @@ function idempotentMiddleware(req, res, next) {
     });
   }
 
-  // 标记处理中，防止并发重复
+  if (inFlight.has(idempotentKey)) {
+    console.log(`[幂等排队] key=${idempotentKey.slice(0, 8)}... → 等待首个完成`);
+    inFlight.get(idempotentKey).push(res);
+    return;
+  }
+
+  inFlight.set(idempotentKey, []);
+
+  const originalJson = res.json.bind(res);
+  res.json = function (body) {
+    const queue = inFlight.get(idempotentKey) || [];
+    inFlight.delete(idempotentKey);
+
+    for (const queuedRes of queue) {
+      queuedRes.json({
+        ...body,
+        idempotent: true,
+        message: '(幂等返回) ' + (body.message || '')
+      });
+    }
+
+    return originalJson(body);
+  };
+
   req.__idempotentKey = idempotentKey;
   next();
 }
@@ -121,6 +146,14 @@ app.post('/api/order/submit', idempotentMiddleware, (req, res) => {
 // 查询订单列表
 app.get('/api/orders', (req, res) => {
   res.json({ code: 0, data: orders, total: orders.length });
+});
+
+// 清空订单列表
+app.delete('/api/orders', (req, res) => {
+  const count = orders.length;
+  orders.length = 0;
+  console.log(`[清空] 已清除 ${count} 条订单`);
+  res.json({ code: 0, message: `已清空 ${count} 条订单`, data: [] });
 });
 
 // 通用幂等接口 - POST/PUT/DELETE 写操作

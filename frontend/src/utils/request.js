@@ -3,7 +3,7 @@
 // =============================================
 
 import axios from 'axios';
-import { getIdempotentKey, requestFingerprint } from './idempotent.js';
+import { getIdempotentKey, requestFingerprint, refreshIdempotentKey } from './idempotent.js';
 
 const instance = axios.create({
   baseURL: '/',
@@ -81,13 +81,17 @@ instance.interceptors.request.use(async (config) => {
 
 instance.interceptors.response.use(
   (response) => {
-    // 清理指纹
     const fingerprint = requestFingerprint(response.config);
     pendingRequests.delete(fingerprint);
 
-    // 幂等返回提示
     if (response.data?.idempotent) {
       console.log('[幂等返回] 服务端检测到重复请求，返回缓存结果');
+    }
+
+    // 写请求成功后刷新幂等Key，下次请求用新Key
+    const method = (response.config.method || 'GET').toUpperCase();
+    if (!response.config.__skipIdempotent && ['POST', 'PUT', 'PATCH', 'DELETE'].includes(method)) {
+      refreshIdempotentKey();
     }
 
     return response;
