@@ -4,8 +4,13 @@
       <div class="version-badge">v{{ version }}</div>
       <h1>大厂级防重复提交方案</h1>
       <p class="subtitle">前端+后端双保险，全局拦截器 + 幂等设计 + 自定义指令</p>
+      <nav class="view-nav">
+        <button class="nav-tab" :class="{ active: currentView === 'demo' }" @click="currentView = 'demo'">🧪 Demo 演示</button>
+        <button class="nav-tab" :class="{ active: currentView === 'tutorial' }" @click="currentView = 'tutorial'">📖 新人教程</button>
+      </nav>
     </header>
-    <DemoForm />
+    <DemoForm v-if="currentView === 'demo'" />
+    <Tutorial v-if="currentView === 'tutorial'" />
     
     <footer class="app-footer">
       <div class="changelog-section" v-if="showChangelog">
@@ -22,8 +27,10 @@
 <script setup>
 import { ref, onMounted } from 'vue';
 import DemoForm from './components/DemoForm.vue';
+import Tutorial from './components/Tutorial.vue';
 
 const version = '1.4.1';
+const currentView = ref('demo');
 const showChangelog = ref(false);
 const changelogHtml = ref('');
 
@@ -87,6 +94,35 @@ body {
   color: #666;
   margin-top: 8px;
   font-size: 14px;
+}
+
+.view-nav {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 18px;
+}
+
+.nav-tab {
+  padding: 8px 24px;
+  border: 2px solid #e0e4f0;
+  background: #fff;
+  border-radius: 8px;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.2s;
+  color: #666;
+}
+
+.nav-tab:hover {
+  border-color: #667eea;
+  color: #667eea;
+}
+
+.nav-tab.active {
+  background: linear-gradient(135deg, #667eea, #764ba2);
+  color: #fff;
+  border-color: transparent;
 }
 
 .version-badge {

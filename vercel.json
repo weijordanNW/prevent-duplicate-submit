@@ -5,7 +5,13 @@
   "installCommand": "npm install --prefix frontend && npm install --prefix server",
   "framework": "vite",
   "rewrites": [
-    { "source": "/api/(.*)", "destination": "/api/server" },
-    { "source": "/((?!api).*)", "destination": "/index.html" }
+    {
+      "source": "/api/(.*)",
+      "destination": "/api/server"
+    },
+    {
+      "source": "/((?!api).*)",
+      "destination": "/index.html"
+    }
   ]
 }
