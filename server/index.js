@@ -160,8 +160,9 @@ const DOWNLOAD_FILES = {
   'middleware/idempotent.js': path.join(__dirname, 'idempotent-middleware.js'),
 };
 
-app.get('/api/download/toolkit/:file', (req, res) => {
-  const filePath = DOWNLOAD_FILES[req.params.file];
+app.get('/api/download/toolkit/:file(*)', (req, res) => {
+  const rawFile = req.params.file;
+  const filePath = DOWNLOAD_FILES[rawFile];
   if (!filePath) {
     return res.status(404).json({ code: -1, message: '文件不存在' });
   }
@@ -171,7 +172,7 @@ app.get('/api/download/toolkit/:file', (req, res) => {
   }
 
   const content = fs.readFileSync(filePath, 'utf-8');
-  const filename = path.basename(req.params.file);
+  const filename = path.basename(rawFile);
   res.setHeader('Content-Type', 'application/javascript; charset=utf-8');
   res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
   res.send(content);
