@@ -29,7 +29,7 @@ import { ref, onMounted } from 'vue';
 import DemoForm from './components/DemoForm.vue';
 import Tutorial from './components/Tutorial.vue';
 
-const version = '1.6.1';
+const version = '1.6.2';
 const currentView = ref('demo');
 const showChangelog = ref(false);
 const changelogHtml = ref('');
