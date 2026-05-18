@@ -108,7 +108,11 @@ async function submitAsync() {
 
         <div class="file-box">
           <h4>需要复制的文件</h4>
-          <code>utils/preventReClick.js</code>
+          <div class="file-item-download">
+            <span class="file-icon">📄</span>
+            <code>utils/preventReClick.js</code>
+            <a :href="downloadUrl('utils/preventReClick.js')" class="download-btn" download>⬇ 下载</a>
+          </div>
         </div>
       </section>
 
@@ -124,6 +128,7 @@ async function submitAsync() {
               <strong>utils/request.js</strong>
               <p>Axios 封装 + 请求/响应拦截器</p>
             </div>
+            <a :href="downloadUrl('utils/request.js')" class="download-btn" download>⬇ 下载</a>
           </div>
           <div class="file-item">
             <span class="file-icon">📄</span>
@@ -131,6 +136,7 @@ async function submitAsync() {
               <strong>utils/idempotent.js</strong>
               <p>幂等 Key 生成器 + 请求指纹计算</p>
             </div>
+            <a :href="downloadUrl('utils/idempotent.js')" class="download-btn" download>⬇ 下载</a>
           </div>
           <div class="file-item">
             <span class="file-icon">📄</span>
@@ -138,6 +144,7 @@ async function submitAsync() {
               <strong>utils/preventReClick.js</strong>
               <p>v-preventReClick 指令</p>
             </div>
+            <a :href="downloadUrl('utils/preventReClick.js')" class="download-btn" download>⬇ 下载</a>
           </div>
         </div>
 
@@ -186,6 +193,12 @@ await request({ ...skipIdempotent({ method: 'post', url: '/api/x' }) });</code><
         </div>
 
         <h3>4.2 复制幂等中间件到你的项目</h3>
+        <div class="file-item-download standalone">
+          <span class="file-icon">📄</span>
+          <a :href="downloadUrl('middleware/idempotent.js')" class="download-btn" download>⬇ 下载 idempotent.js</a>
+          <span class="download-hint">（放到项目的 middleware/ 目录即可）</span>
+        </div>
+        <p style="font-size:13px;color:#888;margin:8px 0;">也可以直接下载文件放入项目：</p>
         <div class="code-block">
           <div class="code-header"><span>middleware/idempotent.js（新建文件，粘贴以下代码）</span><button class="copy-btn" @click="copyCode">复制</button></div>
           <pre><code ref="middleware">// =============================================
@@ -391,6 +404,10 @@ function copyCode() {
     btn.textContent = '已复制!';
     setTimeout(() => { btn.textContent = '复制'; }, 1500);
   });
+}
+
+function downloadUrl(file) {
+  return `/api/download/toolkit/${file}`;
 }
 </script>
 
@@ -688,6 +705,49 @@ function copyCode() {
   color: #888;
   font-size: 12px;
   margin-top: 2px;
+}
+
+.file-item-download {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px;
+  background: #fff;
+  border: 1px solid #e0e4f0;
+  border-radius: 8px;
+}
+
+.file-item-download.standalone {
+  margin: 14px 0;
+}
+
+.download-btn {
+  margin-left: auto;
+  padding: 6px 14px;
+  background: linear-gradient(135deg, #43e97b, #38f9d7);
+  color: #333;
+  border-radius: 6px;
+  text-decoration: none;
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  transition: all 0.2s;
+  border: none;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.download-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(67, 233, 123, 0.3);
+}
+
+.download-hint {
+  font-size: 12px;
+  color: #999;
+  margin-left: auto;
 }
 
 .auto-guard-flow {

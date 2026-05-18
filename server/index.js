@@ -1,3 +1,5 @@
+const path = require('path');
+const fs = require('fs');
 const express = require('express');
 const cors = require('cors');
 const { v4: uuidv4 } = require('uuid');
@@ -146,6 +148,33 @@ app.post('/api/order/submit', idempotentMiddleware, (req, res) => {
 // 查询订单列表
 app.get('/api/orders', (req, res) => {
   res.json({ code: 0, data: orders, total: orders.length });
+});
+
+// =============================================
+// 源码文件下载接口 (供教程使用)
+// =============================================
+const DOWNLOAD_FILES = {
+  'utils/request.js': path.join(__dirname, '..', 'frontend/src/utils/request.js'),
+  'utils/idempotent.js': path.join(__dirname, '..', 'frontend/src/utils/idempotent.js'),
+  'utils/preventReClick.js': path.join(__dirname, '..', 'frontend/src/utils/preventReClick.js'),
+  'middleware/idempotent.js': path.join(__dirname, 'idempotent-middleware.js'),
+};
+
+app.get('/api/download/toolkit/:file', (req, res) => {
+  const filePath = DOWNLOAD_FILES[req.params.file];
+  if (!filePath) {
+    return res.status(404).json({ code: -1, message: '文件不存在' });
+  }
+
+  if (!fs.existsSync(filePath)) {
+    return res.status(404).json({ code: -1, message: '源文件不存在' });
+  }
+
+  const content = fs.readFileSync(filePath, 'utf-8');
+  const filename = path.basename(req.params.file);
+  res.setHeader('Content-Type', 'application/javascript; charset=utf-8');
+  res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+  res.send(content);
 });
 
 // 清空订单列表
